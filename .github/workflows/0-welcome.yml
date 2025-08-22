@@ -1,64 +1,715 @@
-name: Step 0, Welcome
+!pip install bash_kernel
+!python -m bash_kernel.install
 
-# This step triggers after the learner creates a new repository from the template.
-# This workflow updates from step 0 to step 1.
 
-# This will run every time we create push a commit to `main`.
-# Reference: https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+!pip install virtual-ecosystem
 
-# Reference: https://docs.github.com/en/actions/security-guides/automatic-token-authentication
-permissions:
-  # Need `contents: read` to checkout the repository.
-  # Need `contents: write` to update the step metadata.
-  contents: write
 
-jobs:
-  # Get the current step to only run the main job when the learner is on the same step.
-  get_current_step:
-    name: Check current step number
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - id: get_step
-        run: |
-          echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
-    outputs:
-      current_step: ${{ steps.get_step.outputs.current_step }}
+pip install matplotlib numpy xarray
 
-  on_welcome:
-    name: On welcome
-    needs: get_current_step
+import pathlib
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import numpy as np
+import xarray
 
-    # We will only run this action when:
-    # 1. This repository isn't the template repository.
-    # 2. The step is currently 0.
-    # Reference: https://docs.github.com/en/actions/learn-github-actions/contexts
-    # Reference: https://docs.github.com/en/actions/learn-github-actions/expressions
-    if: >-
-      ${{ !github.event.repository.is_template
-          && needs.get_current_step.outputs.current_step == 0 }}
+import subprocess
 
-    # We'll run Ubuntu for performance instead of Mac or Windows.
-    runs-on: ubuntu-latest
+subprocess.run("if [ -d /ve_example ]; then rm -r /ve_example; fi", shell=True)
 
-    steps:
-      # We'll need to check out the repository so that we can edit README.md.
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Let's get all the branches.
+import os
+os.environ["PATH"] += r";C:\Users\admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\Scripts"
 
-      # In README.md, switch step 0 for step 1.
-      - name: Update to step 1
-        uses: skills/action-update-step@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          from_step: 0
-          to_step: 1
-          branch_name: my-first-branch
+import numpy as np
+
+# Generate range of cell numbers in the x and y directions. Here we have a 9x9 grid,
+# so cells are numbered from 0 to 8 in each direction.
+nx = 9
+ny = 9
+x_cell_ids = np.arange(nx)
+y_cell_ids = np.arange(ny)
+
+# How far the center of each cell is from the origin. This applies to both the x and y
+# direction independently, so cell (0,0) is at the origin, whereas cell (2,3) is 180m
+# from the origin in the x direction and 270m in the y direction.
+cell_displacements = np.arange(0, 721, 90)
+
+# Cell id codes
+n_cells = nx * ny
+cell_id = np.arange(n_cells)
+
+# Time dimension - a time series of 24 months.
+valid_time = np.arange(np.datetime64("2013-01"), np.datetime64("2015-01")).astype(
+    "datetime64[D]"
+)
+n_dates = len(valid_time)
+time_index = np.arange(n_dates)
+
+
+import numpy as np
+from xarray import DataArray
+
+from virtual_ecosystem.example_data.generation_scripts.common import cell_displacements
+
+# # Load DEM in 30m resolution
+# original_data = requests.get(
+#     "https://zenodo.org/records/3490488/files/SRTM_UTM50N_processed.tif"
+# )
+
+# data_path = Path("SRTM_UTM50N_processed.tif")
+# with open(data_path, "wb") as f:
+#     f.write(original_data.content)
+
+# dem = rioxarray.open_rasterio("SRTM_UTM50N_processed.tif")
+
+# # Specify the original grid coordinates
+# x = dem.coords["x"]  # type: ignore
+# y = dem.coords["y"]  # type: ignore
+
+# # Create a new grid of longitude and latitude coordinates with higher resolution
+# new_resolution = 26000
+# new_x = np.arange(x.min(), x.max(), new_resolution)  # type: ignore
+# new_y = np.arange(y.min(), y.max(), new_resolution)  # type: ignore
+
+# # Project DEM to new mesh
+# dem_9x9 = dem.interp(x=new_x, y=new_y)  # type: ignore
+
+# # Reduce the data to required information for netcdf
+# dem_cleaned = (
+#     dem_9x9.drop_vars(
+#       ["band", "spatial_ref"]
+#     ).squeeze("band").drop_indexes(["x", "y"])
+# )
+
+dem_data = np.array(
+    [
+        [1353.0, 583.0, 248.333, 118.0, 24.0, 35.0, 11.0, 46.333, 0.0],
+        [1122.667, 446.111, 404.0, 462.667, 65.444, 52.667, 40.667, 0.0, 11.222],
+        [928.667, 284.778, 277.222, 552.667, 655.111, 671.667, 54.667, 42.222, 831.778],
+        [1008.0, 992.333, 440.0, 582.0, 523.0, 338.333, 596.0, 548.0, 314.0],
+        [619.0, 580.778, 471.222, 271.333, 293.667, 169.0, 609.333, 301.444, 175.667],
+        [374.0, 415.111, 500.111, 318.667, 138.556, 91.444, 88.0, 81.0, 152.778],
+        [1262.0, 316.667, 606.333, 401.0, 116.0, 110.667, 107.0, 16.0, 11.667],
+        [159.333, 1121.778, 1207.222, 524.333, 253.889, 77.444, 76.667, 34.333, 9.889],
+        [0.0, 820.222, 1154.889, 850.333, 299.222, 183.556, 7.333, 8.111, 17.889],
+    ]
+)
+dem_cleaned = DataArray(name="elevation", data=dem_data, dims=("x", "y"))
+
+# Change coordinates to match example data grid
+dem_placed = dem_cleaned.assign_coords(
+    {"x": cell_displacements, "y": cell_displacements}
+)
+
+# Save to netcdf and remove downloaded data
+dem_placed.to_netcdf("../data/example_elevation_data.nc")
+
+
+
+import numpy as np
+import xarray as xr
+from xarray import DataArray
+
+from virtual_ecosystem.example_data.generation_scripts.common import (
+    time_index,
+    x_cell_ids,
+    y_cell_ids,
+)
+
+# 1. Load ERA5_Land data in low resolution
+
+dataset = xr.open_dataset("../source/ERA5_land_example.nc")
+
+# 2. Convert temperatures units
+# The standard output unit of ERA5-Land temperatures is Kelvin which we need to convert
+# to degree Celsius for the Virtual Ecosystem. This includes 2m air temperature and
+# 2m dewpoint temperature which are used to calculate relative humidity in next step.
+
+dataset["t2m_C"] = dataset["t2m"] - 273.15  # 2m air temperature
+dataset["d2m_C"] = dataset["d2m"] - 273.15  # 2m dewpoint temperature
+
+# 3. Calculate relative humidity
+# Relative humidity (RH) is not a standard output from ERA5-Land but can be calculated
+# from 2m dewpoint temperature (DPT) and 2m air temperature (T)
+
+dataset["rh2m"] = 100.0 * (
+    np.exp(17.625 * dataset["d2m_C"] / (243.04 + dataset["d2m_C"]))
+    / np.exp(17.625 * dataset["t2m_C"] / (243.04 + dataset["t2m_C"]))
+)
+
+# 4. Convert precipitation units
+# The standard output unit for total precipitation in ERA5-Land is meters which we need
+# to convert to millimeters. Further, the data represents mean daily accumulated
+# precipitation for the 9x9km grid box, so the value has to be scaled to monthly (here
+# 30 days). TODO handle daily inputs
+
+dataset["tp_mm"] = dataset["tp"] * 1000 * 30
+
+# 5. Convert surface pressure units
+# The standard output unit for surface pressure in ERA5-Land is Pascal (Pa) which we
+# need to convert to Kilopascal (kPa).
+
+dataset["sp_kPa"] = dataset["sp"] / 1000
+
+# 6. Clean dataset and rename variables
+# In this step, we delete the initial temperature variables (K), precipitation (m), and
+# surface pressure(Pa) and rename the remaining variables according to the Virtual
+# Ecosystem naming convention.
+
+dataset_cleaned = dataset.drop_vars(["d2m", "d2m_C", "t2m", "tp", "sp"])
+dataset_renamed = dataset_cleaned.rename(
+    {
+        "sp_kPa": "atmospheric_pressure_ref",
+        "tp_mm": "precipitation",
+        "t2m_C": "air_temperature_ref",
+        "rh2m": "relative_humidity_ref",
+    }
+)
+
+# 7. Add further required variables
+# In addition to the variables from the ERA5-Land datasset, a time series of atmospheric
+# CO2 is needed. We add this here as a constant field. Mean annual temperature
+# is calculated from the full time series of air temperatures; in the future, this
+# should be done for each year.
+
+dataset_renamed["atmospheric_co2_ref"] = DataArray(
+    np.full_like(dataset_renamed["air_temperature_ref"], 400),
+    dims=["valid_time", "latitude", "longitude"],
+)
+dataset_renamed["wind_speed_ref"] = DataArray(
+    np.full_like(dataset_renamed["air_temperature_ref"], 0.1),
+    dims=["valid_time", "latitude", "longitude"],
+)
+dataset_renamed["mean_annual_temperature"] = dataset_renamed[
+    "air_temperature_ref"
+].mean(dim="valid_time")
+
+
+# 8. project data on model grid
+# The following code segment interpolates the data on to the model grid (here 9x9) and
+# fills nan value with the grid mean
+time = time_index
+lat = dataset_renamed.latitude.values
+lon = dataset_renamed.longitude.values
+
+# Create new target lat/lon grid
+new_lat = np.linspace(lat.min(), lat.max(), len(y_cell_ids))
+new_lon = np.linspace(lon.min(), lon.max(), len(x_cell_ids))
+
+# Interpolate spatially (lat/lon) with nearest neighbor method
+data_9x9x24 = dataset_renamed.interp(
+    latitude=new_lat, longitude=new_lon, method="nearest"
+)
+
+# Fill nan values with grid mean
+dataset_filled = data_9x9x24.map(lambda x: x.fillna(x.mean(skipna=True)))
+
+# 9. Change coordinates and dimensions
+# The following code segment changes the coordinate names from `longitude/latitude` to
+# `x/y` and the units from `minutes` to `meters`. The ERA5-Land coordinates are treated
+# as the centre points of the grid cells which means that when setting up the grid, an
+# offset of 4.5 km has to be added.
+# Further, the example model iterates over time indices rather than real datetime.
+# Therefore, we add a `time_index` coordinate to the dataset:
+
+dataset_xyt = (
+    dataset_filled.rename_dims(
+        {"longitude": "x", "latitude": "y", "valid_time": "time_index"}
+    )
+    .drop_vars({"longitude", "latitude", "valid_time"})
+    .assign_coords(
+        {
+            "x": np.arange(0, 810, 90),
+            "y": np.arange(0, 810, 90),
+            "time_index": np.arange(0, 24, 1),
+        }
+    )
+)
+
+# 10. Save netcdf
+# Once we confirmed that our dataset is complete and our calculations are correct, we
+# save it as a new netcdf file. This can then be fed into the code data loading system
+# here {mod}`~virtual_ecosystem.core.data`.
+
+dataset_xyt.to_netcdf("../data/example_climate_data.nc")
+
+
+
+
+
+
+# Take Test5 as an example
+
+test5 = xarray.load_dataset(r"C:\Users\admin\Desktop\virtual_package\ve_example\practice5_out\all_continuous_data.nc")
+initial_state5 = xarray.load_dataset(r"C:\Users\admin\Desktop\virtual_package\ve_example\practice5_out\initial_state.nc")
+final_state5 = xarray.load_dataset(r"C:\Users\admin\Desktop\virtual_package\ve_example\practice5_out\final_state.nc")
+
+from sklearn.linear_model import LinearRegression
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ===== 选择误差类型: 'sd' 或 'sem' =====
+err_type = "sd"  # 改成 'sem' 则显示标准误 SEM
+
+# ===== 取时间 =====
+time = test5["time_index"].values
+time_reshaped = np.arange(len(time)).reshape(-1, 1)  # 用序号代替时间做回归
+
+# ===== 1) Precipitation across grid cells =====
+precip = test5["precipitation_surface"]
+precip_mean = precip.mean(dim="cell_id")
+precip_sd = precip.std(dim="cell_id")
+precip_sem = precip_sd / np.sqrt(precip.sizes["cell_id"])
+precip_err = precip_sd if err_type=="sd" else precip_sem
+
+# 回归降雨
+model_precip = LinearRegression()
+model_precip.fit(time_reshaped, precip_mean.values)
+precip_pred = model_precip.predict(time_reshaped)
+
+# ===== 2) Topsoil moisture (layer 12) =====
+topsoil = test5["soil_moisture"].isel(layers=12)
+sm_mean = topsoil.mean(dim="cell_id")
+sm_sd = topsoil.std(dim="cell_id")
+sm_sem = sm_sd / np.sqrt(topsoil.sizes["cell_id"])
+sm_err = sm_sd if err_type=="sd" else sm_sem
+
+# 回归土壤湿度
+model_sm = LinearRegression()
+model_sm.fit(time_reshaped, sm_mean.values)
+sm_pred = model_sm.predict(time_reshaped)
+
+# ===== 画图 =====
+fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(12, 5), sharex=True)
+
+# --- 降雨 ---
+ax1.plot(time, precip_mean, label="Mean precipitation")
+ax1.fill_between(time, precip_mean - precip_err, precip_mean + precip_err,
+                 alpha=0.2, label=f"±1 {err_type.upper()}")
+ax1.plot(time, precip_pred, color="black", linewidth=2.5,
+         label=f"Trend: y={model_precip.coef_[0]:.2f}x+{model_precip.intercept_:.2f}")
+ax1.set_title("Mean precipitation across all grid cells")
+ax1.set_xlabel("Time step (months)")
+ax1.set_ylabel("Mean precipitation (mm)")
+ax1.legend()
+
+# --- 土壤湿度 ---
+ax2.plot(time, sm_mean, label="Mean topsoil moisture", color="tab:orange")
+ax2.fill_between(time, sm_mean - sm_err, sm_mean + sm_err,
+                 alpha=0.2, color="tab:orange", label=f"±1 {err_type.upper()}")
+ax2.plot(time, sm_pred, color="black", linewidth=2.5,
+         label=f"Trend: y={model_sm.coef_[0]:.2f}x+{model_sm.intercept_:.2f}")
+ax2.set_title("Mean topsoil moisture across all grid cells")
+ax2.set_xlabel("Time step (months)")
+ax2.set_ylabel("Mean soil moisture of the topsoil layer")
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+
+
+import numpy as np
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+from scipy.stats import pearsonr  # 新增
+
+# ===== 1. Extract the time series (average of all grid cells) =====
+precip_mean = test5["precipitation_surface"].mean(dim="cell_id").values
+sm_mean = test5["soil_moisture"].isel(layers=12).mean(dim="cell_id").values
+
+# ===== 2. Linear regression (precip -> topsoil moisture) =====
+X = precip_mean.reshape(-1, 1)
+y = sm_mean
+
+X_const = sm.add_constant(X)
+model = sm.OLS(y, X_const).fit()
+
+# 计算 Pearson r
+r_value, p_r = pearsonr(precip_mean, sm_mean)
+
+# 输出回归结果
+print(model.summary())
+print(f"Pearson r = {r_value:.3f}, p = {p_r:.4f}")
+
+# ===== 3. Draw scatter plot + regression line =====
+plt.figure(figsize=(7,5))
+plt.scatter(precip_mean, sm_mean, alpha=0.6, label="Observed data")
+plt.plot(precip_mean, model.predict(X_const), color="red", linewidth=2,
+         label=(f"y = {model.params[1]:.2f}x + {model.params[0]:.2f}\n"
+                f"p(slope) = {model.pvalues[1]:.4f}, R² = {model.rsquared:.3f}\n"
+                f"Pearson r = {r_value:.3f}"))
+
+plt.xlabel("Mean Precipitation (mm)")
+plt.ylabel("Mean Topsoil Moisture")
+plt.title("Relationship between Precipitation and Topsoil Moisture")
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+
+precip_df = test5["precipitation_surface"].to_dataframe().reset_index()
+soil_df   = test5["soil_moisture"].isel(layers=12).to_dataframe().reset_index()
+
+# 合并两个变量（按 time_index & cell_id）
+df = precip_df.merge(soil_df, on=["time_index", "cell_id"])
+df = df.rename(columns={
+    "precipitation_surface": "precipitation",
+    "soil_moisture": "soil_moisture"
+})
+
+# elevation 来自 initial_state5
+# 形状: (n_cell,)；转为 Series 以便映射
+elev_vals = initial_state5["elevation"].values            # shape = (n_cell,)
+cell_ids  = test5["cell_id"].values                       # 与 elevation 
+elev_map  = {int(cid): float(elev_vals[i]) for i, cid in enumerate(cell_ids)}
+
+# 把海拔映射到每条记录（按 cell_id）
+df["elevation"] = df["cell_id"].map(elev_map)
+
+# 丢掉缺失
+df = df.dropna(subset=["precipitation", "soil_moisture", "elevation"]).copy()
+
+# ========= 2) 
+df["precip_c"] = df["precipitation"] - df["precipitation"].mean()
+df["elev_c"]   = df["elevation"]     - df["elevation"].mean()
+
+# ========= 3) 回归：无交互 & 有交互 =========
+# 3.1 基础模型（无交互）
+mod_base = smf.ols("soil_moisture ~ precip_c + elev_c", data=df).fit(cov_type="HC3")
+
+# 3.2 交互模型（有交互；'*' 等价于 precip_c + elev_c + precip_c:elev_c）
+mod_int_hc3 = smf.ols("soil_moisture ~ precip_c * elev_c", data=df).fit(cov_type="HC3")
+
+# 3.3 
+mod_int_clu = smf.ols("soil_moisture ~ precip_c * elev_c", data=df).fit(
+    cov_type="cluster",
+    cov_kwds={"groups": df["cell_id"]}  
+)
+
+
+model = smf.ols(formula="soil_moisture ~ precipitation * elevation", data=df).fit()
+
+
+print(model.summary())
+
+
+interaction_p = model.pvalues['precipitation:elevation']
+if interaction_p < 0.05:
+    print(f"交互项显著 (p = {interaction_p:.4f})：
+else:
+    print(f"交互项不显著 (p = {interaction_p:.4f})：)
+
+
+from sklearn.linear_model import LinearRegression
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ===== 选择误差类型: 'sd' 或 'sem' =====
+err_type = "sd"  # 改成 'sem' 则显示标准误 SEM
+
+# ===== 取时间 =====
+time = test5["time_index"].values
+time_reshaped = np.arange(len(time)).reshape(-1, 1)  # 用序号代替时间做回归
+
+# ===== 1) Precipitation across grid cells =====
+precip = test5["precipitation_surface"]
+precip_mean = precip.mean(dim="cell_id")
+precip_sd = precip.std(dim="cell_id")
+precip_sem = precip_sd / np.sqrt(precip.sizes["cell_id"])
+precip_err = precip_sd if err_type=="sd" else precip_sem
+
+# 回归降雨
+model_precip = LinearRegression()
+model_precip.fit(time_reshaped, precip_mean.values)
+precip_pred = model_precip.predict(time_reshaped)
+
+# ===== 2) Subsoil moisture (layer 13) =====
+subsoil = test5["soil_moisture"].isel(layers=13)
+sm_mean = subsoil.mean(dim="cell_id")
+sm_sd = subsoil.std(dim="cell_id")
+sm_sem = sm_sd / np.sqrt(subsoil.sizes["cell_id"])
+sm_err = sm_sd if err_type=="sd" else sm_sem
+
+# 回归土壤湿度
+model_sm = LinearRegression()
+model_sm.fit(time_reshaped, sm_mean.values)
+sm_pred = model_sm.predict(time_reshaped)
+
+# ===== 画图 =====
+fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(12, 5), sharex=True)
+
+# --- 降雨 ---
+ax1.plot(time, precip_mean, label="Mean precipitation")
+ax1.fill_between(time, precip_mean - precip_err, precip_mean + precip_err,
+                 alpha=0.2, label=f"±1 {err_type.upper()}")
+ax1.plot(time, precip_pred, color="black", linewidth=2.5,
+         label=f"Trend: y={model_precip.coef_[0]:.2f}x+{model_precip.intercept_:.2f}")
+ax1.set_title("Mean precipitation across all grid cells")
+ax1.set_xlabel("Time step (months)")
+ax1.set_ylabel("Mean precipitation (mm)")
+ax1.legend()
+
+# --- 土壤湿度 ---
+ax2.plot(time, sm_mean, label="Mean subsoil moisture", color="tab:orange")
+ax2.fill_between(time, sm_mean - sm_err, sm_mean + sm_err,
+                 alpha=0.2, color="tab:orange", label=f"±1 {err_type.upper()}")
+ax2.plot(time, sm_pred, color="black", linewidth=2.5,
+         label=f"Trend: y={model_sm.coef_[0]:.2f}x+{model_sm.intercept_:.2f}")
+ax2.set_title("Mean subsoil moisture across all grid cells")
+ax2.set_xlabel("Time step (months)")
+ax2.set_ylabel("Mean soil moisture of the subsoil layer")
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+
+
+
+import numpy as np
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+from scipy.stats import pearsonr  # 新增
+
+# ===== 1. Extract the time series (average of all grid cells) =====
+precip_mean = test5["precipitation_surface"].mean(dim="cell_id").values
+sm_mean = test5["soil_moisture"].isel(layers=13).mean(dim="cell_id").values
+
+# ===== 2. Linear regression (precip -> subsoil moisture) =====
+X = precip_mean.reshape(-1, 1)
+y = sm_mean
+
+X_const = sm.add_constant(X)
+model = sm.OLS(y, X_const).fit()
+
+# 计算 Pearson r
+r_value, p_r = pearsonr(precip_mean, sm_mean)
+
+# 输出回归结果
+print(model.summary())
+print(f"Pearson r = {r_value:.3f}, p = {p_r:.4f}")
+
+# ===== 3. Draw scatter plot + regression line =====
+plt.figure(figsize=(7,5))
+plt.scatter(precip_mean, sm_mean, alpha=0.6, label="Observed data")
+plt.plot(precip_mean, model.predict(X_const), color="red", linewidth=2,
+         label=(f"y = {model.params[1]:.2f}x + {model.params[0]:.2f}\n"
+                f"p(slope) = {model.pvalues[1]:.4f}, R² = {model.rsquared:.3f}\n"
+                f"Pearson r = {r_value:.3f}"))
+
+plt.xlabel("Mean Precipitation (mm)")
+plt.ylabel("Mean Subsoil Moisture")
+plt.title("Relationship between Precipitation and Subsoil Moisture")
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+
+
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+# ========= 1) 准备数据 =========
+# 降雨和土壤湿度 -> 转为 DataFrame（含 time_index, cell_id 两级索引）
+precip_df = test5["precipitation_surface"].to_dataframe().reset_index()
+soil_df   = test5["soil_moisture"].isel(layers=13).to_dataframe().reset_index()
+
+# 合并两个变量（按 time_index & cell_id）
+df = precip_df.merge(soil_df, on=["time_index", "cell_id"])
+df = df.rename(columns={
+    "precipitation_surface": "precipitation",
+    "soil_moisture": "soil_moisture"
+})
+
+# elevation 来自 initial_state5（仅按 cell_id 取数，通常不随时间变）
+# 形状: (n_cell,)；转为 Series 以便映射
+elev_vals = initial_state5["elevation"].values            # shape = (n_cell,)
+cell_ids  = test5["cell_id"].values                       # 与 elevation 顺序一致
+elev_map  = {int(cid): float(elev_vals[i]) for i, cid in enumerate(cell_ids)}
+
+# 把海拔映射到每条记录（按 cell_id）
+df["elevation"] = df["cell_id"].map(elev_map)
+
+# 丢掉缺失
+df = df.dropna(subset=["precipitation", "soil_moisture", "elevation"]).copy()
+
+# ========= 2) 变量中心化（推荐：降低交互项多重共线性）=========
+df["precip_c"] = df["precipitation"] - df["precipitation"].mean()
+df["elev_c"]   = df["elevation"]     - df["elevation"].mean()
+
+# ========= 3) 回归：无交互 & 有交互 =========
+# 3.1 基础模型（无交互）
+mod_base = smf.ols("soil_moisture ~ precip_c + elev_c", data=df).fit(cov_type="HC3")
+
+# 3.2 交互模型（有交互；'*' 等价于 precip_c + elev_c + precip_c:elev_c）
+mod_int_hc3 = smf.ols("soil_moisture ~ precip_c * elev_c", data=df).fit(cov_type="HC3")
+
+# 3.3 同一个交互模型，但使用按 cell_id 聚类的标准误（考虑同格点的时间相关）
+mod_int_clu = smf.ols("soil_moisture ~ precip_c * elev_c", data=df).fit(
+    cov_type="cluster",
+    cov_kwds={"groups": df["cell_id"]}  # 聚类维度
+)
+
+# 回归模型
+model = smf.ols(formula="soil_moisture ~ precipitation * elevation", data=df).fit()
+
+# 打印完整回归表
+print(model.summary())
+
+# 单独提取交互项的显著性信息
+interaction_p = model.pvalues['precipitation:elevation']
+if interaction_p < 0.05:
+    print(f"交互项显著 (p = {interaction_p:.4f})：海拔会显著影响降雨与土壤湿度的关系。")
+else:
+    print(f"交互项不显著 (p = {interaction_p:.4f})：海拔不会显著改变降雨与土壤湿度的关系。")
+
+
+
+
+from sklearn.linear_model import LinearRegression
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ===== 选择误差类型: 'sd' 或 'sem' =====
+err_type = "sd"  # 改成 'sem' 则显示标准误 SEM
+
+# ===== 取时间 =====
+time = test5["time_index"].values
+time_reshaped = np.arange(len(time)).reshape(-1, 1)  # 用序号代替时间做回归（单位=月）
+
+# ===== 1) Precipitation across grid cells =====
+precip = test5["precipitation_surface"]            # dims: (time_index, cell_id)
+precip_mean = precip.mean(dim="cell_id")
+precip_sd   = precip.std(dim="cell_id")
+precip_sem  = precip_sd / np.sqrt(precip.sizes["cell_id"])
+precip_err  = precip_sd if err_type == "sd" else precip_sem
+
+# 回归降雨
+model_precip = LinearRegression()
+model_precip.fit(time_reshaped, precip_mean.values)
+precip_pred = model_precip.predict(time_reshaped)
+
+# ===== 2) Bypass flow across grid cells =====
+bypass = test5["bypass_flow"]                      # dims: (time_index, cell_id)
+bf_mean = bypass.mean(dim="cell_id")
+bf_sd   = bypass.std(dim="cell_id")
+bf_sem  = bf_sd / np.sqrt(bypass.sizes["cell_id"])
+bf_err  = bf_sd if err_type == "sd" else bf_sem
+
+# 回归 bypass flow
+model_bf = LinearRegression()
+model_bf.fit(time_reshaped, bf_mean.values)
+bf_pred = model_bf.predict(time_reshaped)
+
+# ===== 画图 =====
+fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(12, 5), sharex=True)
+
+# --- 降雨 ---
+ax1.plot(time, precip_mean, label="Mean precipitation")
+ax1.fill_between(time, precip_mean - precip_err, precip_mean + precip_err,
+                 alpha=0.2, label=f"±1 {err_type.upper()}")
+ax1.plot(time, precip_pred, color="black", linewidth=2.5,
+         label=f"Trend: y={model_precip.coef_[0]:.2f}x+{model_precip.intercept_:.2f}")
+ax1.set_title("Mean precipitation across all grid cells")
+ax1.set_xlabel("Time step (months)")
+ax1.set_ylabel("Mean precipitation (mm)")
+ax1.legend()
+
+# --- Bypass flow ---
+ax2.plot(time, bf_mean, label="Mean bypass flow", color="tab:green")
+ax2.fill_between(time, bf_mean - bf_err, bf_mean + bf_err,
+                 alpha=0.2, color="tab:green", label=f"±1 {err_type.upper()}")
+ax2.plot(time, bf_pred, color="black", linewidth=2.5,
+         label=f"Trend: y={model_bf.coef_[0]:.2f}x+{model_bf.intercept_:.2f}")
+ax2.set_title("Mean bypass flow across all grid cells")
+ax2.set_xlabel("Time step (months)")
+ax2.set_ylabel("Bypass flow")
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+
+# ===== 获取数据 =====
+x_precip = test5["precipitation_surface"].mean(dim="cell_id").values  # X
+y_bypass = test5["bypass_flow"].mean(dim="cell_id").values            # Y
+
+# ===== 清理缺失值 =====
+mask = np.isfinite(x_precip) & np.isfinite(y_bypass)
+x = x_precip[mask].reshape(-1, 1)
+y = y_bypass[mask]
+
+# ===== 一元线性回归 =====
+lr = LinearRegression().fit(x, y)
+slope, intercept = lr.coef_[0], lr.intercept_
+r2 = lr.score(x, y)  # R²
+r = np.corrcoef(x.squeeze(), y)[0, 1]  # Pearson r
+
+# ===== 回归线数据 =====
+x_line = np.linspace(x.min(), x.max(), 200).reshape(-1, 1)
+y_line = lr.predict(x_line)
+
+# ===== 作图 =====
+plt.figure(figsize=(7, 6))
+plt.scatter(x, y, s=28, alpha=0.65, label="Monthly means (all grid cells averaged)")
+plt.plot(x_line, y_line, color="black", linewidth=2.2,
+         label=f"Fit: y = {slope:.2f}x + {intercept:.2f}\nPearson r = {r:.2f}, R² = {r2:.3f}")
+
+plt.xlabel("Mean precipitation (mm)")
+plt.ylabel("Mean bypass flow")
+plt.title("Precipitation vs. Bypass flow (regional means, monthly)")
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+
+
+import pandas as pd
+import statsmodels.formula.api as smf
+
+# ===== 1. 准备数据 =====
+# 降雨 & bypass flow
+precip_df = test5["precipitation_surface"].to_dataframe().reset_index()
+bypass_df = test5["bypass_flow"].to_dataframe().reset_index()
+
+# 合并两个变量
+df = precip_df.merge(bypass_df, on=["time_index", "cell_id"])
+df = df.rename(columns={
+    "precipitation_surface": "precipitation",
+    "bypass_flow": "bypass_flow"
+})
+
+# elevation
+elev_vals = initial_state5["elevation"].values  # shape = (n_cell,)
+cell_ids = test5["cell_id"].values
+elev_map = {int(cid): float(elev_vals[i]) for i, cid in enumerate(cell_ids)}
+df["elevation"] = df["cell_id"].map(elev_map)
+
+# ===== 2. 变量中心化（降低多重共线性）=====
+df["precip_c"] = df["precipitation"] - df["precipitation"].mean()
+df["elev_c"]   = df["elevation"] - df["elevation"].mean()
+
+# ===== 3. 回归模型 =====
+
+# 有交互模型
+mod_int = smf.ols(
+    formula="bypass_flow ~ precip_c * elev_c",
+    data=df
+).fit(cov_type="HC3")  # HC3 异方差稳健标准误
+
+print("\n===== 交互模型（有交互，HC3 异方差稳健） =====")
+print(mod_int.summary())
+
+
